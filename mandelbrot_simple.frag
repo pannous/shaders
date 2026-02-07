@@ -14,7 +14,7 @@ layout(binding = 0) uniform UniformBufferObject {
     float iButton4;
     float iButton5;
     vec2 iPan;  // Accumulated pan offset from dragging
-    vec2 iZoomMouse;  // Mouse position when zoom was last changed (for fixed-point zoom)
+    vec2 iZoomMouse;  // Center offset for zoom-at-cursor (calculated in viewer)
 } ubo;
 
 layout(binding = 1) uniform sampler2D iChannel0;
@@ -94,10 +94,9 @@ void main() {
     center += panComplex;
 
     // === ZOOM-AT-CURSOR (FIXED POINT) ===
-    // Zoom centers on iZoomMouse, which only updates when scrolling/zooming
-    // This prevents drift when just moving the mouse without zooming
-    center.x += (ubo.iZoomMouse.x - 0.5) * 3.0 * (zoom - 1.0) / zoom;
-    center.y += (ubo.iZoomMouse.y - 0.5) * 3.0 * (zoom - 1.0) / zoom;
+    // Viewer calculates zoom center adjustment when zoom changes
+    // This offset is accumulated as you zoom, keeping cursor point fixed
+    center += ubo.iZoomMouse;
 
     // Convert screen coordinates to complex plane
     // Map from [0,1] to complex plane around center
