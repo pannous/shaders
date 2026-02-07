@@ -1,0 +1,11 @@
+# Compiled SPIR-V binaries
+*.spv
+
+# Temporary files
+*.tmp
+*.bak
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
