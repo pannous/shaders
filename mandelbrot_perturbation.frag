@@ -196,7 +196,8 @@ vec3 renderWithAA(vec2 c, int maxIter, int samples) {
     vec3 color = vec3(0.0);
 
     // Calculate pixel size in complex plane
-    float zoom = exp(ubo.iScroll.y * 0.1);
+    // MUST match main() zoom formula exactly!
+    float zoom = sqrt(exp(ubo.iScroll.y * 0.1));
     zoom = clamp(zoom, 0.01, 1e10);
     float aspect = ubo.iResolution.x / ubo.iResolution.y;
     float pixelSize = 3.0 / (zoom * ubo.iResolution.y);

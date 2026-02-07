@@ -92,17 +92,6 @@ void main() {
 
     center += panComplex;
 
-    // === ZOOM-AT-CURSOR (FIXED POINT) ===
-    // Use reference mouse position to prevent drift when just moving mouse
-    // Reference stored in iScroll.x (mouse X) and iButtonLeft (mouse Y)
-    // This way, view only shifts relative to where mouse was at reset, not absolute position
-    vec2 referenceMouse = vec2(ubo.iScroll.x, ubo.iButtonLeft);
-    vec2 deltaMouse = mouse - referenceMouse;
-
-    // Shift based on relative movement from reference, not absolute position
-    center.x += (deltaMouse.x + (referenceMouse.x - 0.5)) * 3.0 * (zoom - 1.0) / zoom;
-    center.y += (deltaMouse.y + (referenceMouse.y - 0.5)) * 3.0 * (zoom - 1.0) / zoom;
-
     // Convert screen coordinates to complex plane
     // Map from [0,1] to complex plane around center
     vec2 c;

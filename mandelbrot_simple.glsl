@@ -92,12 +92,6 @@ void main() {
 
     center += panComplex;
 
-    // === ZOOM-AT-CURSOR ===
-    // Adjust center so the point under the cursor stays fixed when zooming
-    // This is the same math as auto-zoom: as zoom increases, shift toward cursor point
-    center.x += (mouse.x - 0.5) * 3.0 * (zoom - 1.0) / zoom;
-    center.y += (mouse.y - 0.5) * 3.0 * (zoom - 1.0) / zoom;
-
     // Convert screen coordinates to complex plane
     // Map from [0,1] to complex plane around center
     vec2 c;
