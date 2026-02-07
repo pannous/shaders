@@ -176,28 +176,25 @@ void main() {
     // Default center (interesting part of Mandelbrot set)
     vec2 center = vec2(-0.5, 0.0);
 
-    // Zoom toward cursor
-    if (AUTO_ZOOM_SPEED > 0.0) {
-        // Auto-zoom: use reference mouse system for relative movement
-        vec2 referenceMouse = vec2(ubo.iScroll.x, ubo.iButtonLeft);
-        vec2 deltaMouse = mouse - referenceMouse;
+    // === DRAG-AND-DROP PANNING (matches mandelbrot_simple) ===
+    vec2 accumulatedPan = ubo.iPan / ubo.iResolution.xy;
 
-        center.x += (deltaMouse.x + (referenceMouse.x - 0.5)) * 3.0 * (zoom - 1.0) / zoom;
-        center.y += (deltaMouse.y + (referenceMouse.y - 0.5)) * 3.0 * (zoom - 1.0) / zoom;
-    } else {
-        // Manual zoom: use reference mouse for stable fixed point
-        vec2 referenceMouse = vec2(ubo.iScroll.x, ubo.iButtonLeft);
-        vec2 deltaMouse = mouse - referenceMouse;
-
-        center.x += (deltaMouse.x + (referenceMouse.x - 0.5)) * 3.0 * (zoom - 1.0) / zoom;
-        center.y += (deltaMouse.y + (referenceMouse.y - 0.5)) * 3.0 * (zoom - 1.0) / zoom;
+    vec2 currentDrag = vec2(0.0);
+    bool isDragging = (ubo.iMouse.z > 0.0);
+    if (isDragging) {
+        vec2 clickPos = abs(ubo.iMouse.zw) / ubo.iResolution.xy;
+        currentDrag = mouse - clickPos;
     }
 
-    // Add drag-pan offset
-    float aspect = ubo.iResolution.x / ubo.iResolution.y;
-    vec2 panNormalized = ubo.iPan / ubo.iResolution.xy;
-    center.x -= panNormalized.x * 3.0 / zoom * aspect;
-    center.y -= panNormalized.y * 3.0 / zoom;
+    vec2 totalPan = accumulatedPan + currentDrag;
+
+    // Convert pan to complex plane coordinates
+    vec2 panComplex;
+    panComplex.x = -totalPan.x * 3.0 / zoom;
+    panComplex.y = -totalPan.y * 3.0 / zoom;
+    panComplex.x *= ubo.iResolution.x / ubo.iResolution.y;
+
+    center += panComplex;
 
     // Convert screen coordinates to complex plane
     vec2 c;
@@ -205,7 +202,7 @@ void main() {
     c.y = (uv.y - 0.5) * 3.0 / zoom + center.y;
 
     // Adjust aspect ratio
-    c.x *= aspect;
+    c.x *= ubo.iResolution.x / ubo.iResolution.y;
 
     // === ANTI-ALIASING (2x2 grid) ===
     // Sample 4 points in a grid for smoother edges
