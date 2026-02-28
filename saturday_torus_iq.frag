@@ -197,8 +197,6 @@ vec3 postProcess(vec3 col, vec2 q) {
 }
 
 void main() {
-    vec4 fragColor;
-    vec2 fragCoord = fragCoord;
   vec2 q = fragCoord/ubo.iResolution.xy;
   vec2 p = -1. + 2. * q;
   p.x *= RESOLUTION.x/RESOLUTION.y;

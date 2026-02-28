@@ -90,8 +90,6 @@ float softshadow( in vec3 ro, in vec3 rd, float mint, float k )
 }
 
 void main() {
-    vec4 fragColor;
-    vec2 fragCoord = fragCoord;
     vec2 p = -1.0 + 2.0 * fragCoord.xy / ubo.iResolution.xy;
     p.x *= ubo.iResolution.x/ubo.iResolution.y;
 

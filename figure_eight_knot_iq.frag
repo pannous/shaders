@@ -254,8 +254,6 @@ vec3 shade( in vec3 pos, in vec3 nor, in vec3 rd, in float hm )
 }
 
 void main() {
-    vec4 fragColor;
-    vec2 fragCoord = fragCoord;
     // camera movement
     float an = 0.0*ubo.iTime;
     vec3 ro = vec3( 1.0*sin(6.283185*an), 0.0, 1.0*cos(6.283185*an) );

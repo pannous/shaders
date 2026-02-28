@@ -378,8 +378,6 @@ mat3 setCamera( in vec3 ro, in vec3 ta, float cr )
 }
 
 void main() {
-    vec4 fragColor;
-    vec2 fragCoord = fragCoord;
     vec2 mo = ubo.iMouse.xy/ubo.iResolution.xy;
 	float time = 15.0 + ubo.iTime;
 

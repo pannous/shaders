@@ -433,8 +433,6 @@ mat3 setCamera( in vec3 ro, in vec3 ta, float cr )
 }
 
 void main() {
-    vec4 fragColor;
-    vec2 fragCoord = fragCoord;
     vec3 tot = vec3(0.0);
 #if AA>1
     for( int m=ZERO; m<AA; m++ )
