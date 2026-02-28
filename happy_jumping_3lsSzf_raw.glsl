@@ -1,3 +1,16 @@
+#version 450
+
+layout(location = 0) in vec2 fragCoord;
+layout(location = 0) out vec4 fragColor;
+
+layout(binding = 0, set = 0) uniform UniformBufferObject {
+    vec3 iResolution;
+    float iTime;
+    vec4 iMouse;
+} ubo;
+
+layout(binding = 1, set = 0) uniform sampler2D iChannel0;
+
 
 // https://www.shadertoy.com/view/3lsSzf
 
@@ -483,4 +496,5 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     // output    
     fragColor = vec4( tot, 1.0 );
 }
+
 
