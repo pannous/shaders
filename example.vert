@@ -19,5 +19,6 @@ void main() {
     );
 
     gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
-    fragCoord = (positions[gl_VertexIndex] * 0.5 + 0.5) * ubo.iResolution.xy;
+    vec2 uv = positions[gl_VertexIndex] * 0.5 + 0.5;
+    fragCoord = vec2(uv.x, 1.0 - uv.y) * ubo.iResolution.xy;
 }
