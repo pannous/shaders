@@ -133,3 +133,35 @@ Compatible with:
 ## License
 
 Public domain / CC0 - use freely
+
+## Running shaders with warp
+
+[warp](https://github.com/pannous/warp) runs single-pass [compute.toys](https://compute.toys) shaders as they are:
+`compute_toy(shader { … })` of `use compute_toys` takes a WGSL kernel `main_image` that ends in
+`textureStore(screen, id.xy, color)` and paints it every frame (natively in a window, in the
+[playground](https://wasp.pannous.com/) on the canvas).
+
+```bash
+warp warp/compute_toys/singularity.warp
+```
+
+| file | shader | author |
+|---|---|---|
+| warp/compute_toys/balatro.warp | [Balatro](https://compute.toys/view/2087) | Matchew123 |
+| warp/compute_toys/cyber_fuji.warp | [Cyber Fuji 2020 [port]](https://compute.toys/view/1396) | quilde, after kaiware007 |
+| warp/compute_toys/dandelion.warp | [Dandelion](https://compute.toys/view/503) | munrocket |
+| warp/compute_toys/fiddling_rings.warp | [fiddling around](https://compute.toys/view/1319) | jonasfrey |
+| warp/compute_toys/kuko175_pumpkins.warp | [KuKo #175](https://compute.toys/view/2608) | kukovisuals |
+| warp/compute_toys/singularity.warp | [Singularity](https://compute.toys/view/2266) | Xor |
+| warp/compute_toys/solar.warp | [Solar (Fork from Xor)](https://compute.toys/view/2152) | alph13, after Xor |
+| warp/compute_toys/wormhole.warp | [Wormhole](https://compute.toys/view/2111) | Matchew123 |
+
+Each file starts with the shader's title, author, source URL and license as far as known. These shaders moved
+here from the warp repository, which is AGPL-3.0 and ships only shaders of its own.
+
+`webgl/load_wavefront_obj/` is a plain WebGL demo of a textured .obj model, bundled from Chinedu Francis Nwafili's
+MIT-licensed npm packages (see its README).
+
+## License
+
+Nothing here is relicensed: each shader keeps its author's license. See [LICENSE.md](LICENSE.md).
