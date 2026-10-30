@@ -1,0 +1,75 @@
+#!/usr/bin/env warp
+# Auroras by nimitz 2017 (@stormoid), Shadertoy XtGGRt, CC BY-NC-SA 3.0 Unported. Ported to warp paint functions:
+# a volume of triangle-noise bands marched with a stride growing along the ray, stars, and their reflection in a lake.
+use math
+width = 640
+height = 360
+time = 3.0
+
+rotated(p, a) := [cosine(a) * p.x - sine(a) * p.y, sine(a) * p.x + cosine(a) * p.y]
+triangle(x) := clamp(abs(fract(x) - 0.5), 0.01, 0.49)
+triangles(p) := [triangle(p.x) + triangle(p.y), triangle(p.y + triangle(p.x))]
+
+triangle_noise(start, speed) := {
+	z = 1.8
+	z2 = 2.5
+	rz = 0.0
+	p = rotated(start, -start.x * 0.06)
+	bp = p
+	for i in 0..5 {
+		dg = rotated(triangles(bp .* 1.85) .* 0.75, -time * speed)
+		p = p .- dg ./ z2
+		bp = bp .* 1.3
+		z2 *= 0.45
+		z *= 0.42
+		p = p .* (1.21 + (rz - 1) * 0.02)
+		rz += triangle(p.x + triangle(p.y)) * z
+		p = rotated(p, -0.29552) .* -1
+	}
+	clamp(1 / (rz * 29) ^ 1.3, 0, 0.55)
+}
+
+hash(p) := fract(sine(dot(p, [12.9898, 4.1414])) * 43758.5453)
+
+# the aurora along the ray: [r, g, b, opacity]
+aurora(origin, ray, x, y) := {
+	color = [0.0, 0.0, 0.0, 0.0]
+	average = [0.0, 0.0, 0.0, 0.0]
+	for i in 0..50 {
+		offset = 0.006 * hash([x, y]) * smoothstep(0, 15, i)
+		t = ((0.8 + i ^ 1.4 * 0.002) - origin.y) / (ray.y * 2 + 0.4) - offset
+		spot = origin .+ ray .* t
+		strength = triangle_noise(spot.zx, 0.06)
+		tint = (sine(1 .- [2.15, -0.5, 1.2] .+ i * 0.043) .* 0.5 .+ 0.5) .* strength
+		average = mix(average, [tint.x, tint.y, tint.z, strength], 0.5)
+		color = color .+ average .* (2 ^ (-i * 0.065 - 2.5) * smoothstep(0, 5, i))
+	}
+	color .* (clamp(ray.y * 15 + 0.4, 0, 1) * 1.8)
+}
+
+background(ray) := {
+	sd = (dot(normalize([-0.5, -0.6, 0.9]), ray) * 0.5 + 0.5) ^ 5
+	mix([0.05, 0.1, 0.2], [0.1, 0.05, 0.2], sd) .* 0.63
+}
+
+auroras(x, y) := {
+	p = [(x / width - 0.5) * width / height, 0.5 - y / height]
+	origin = [0, 0, -6.7]
+	ray = normalize([p.x, p.y, 1.3])
+	turned = rotated(ray.yz, 0.1)
+	ray = [ray.x, turned.x, turned.y]
+	sideways = rotated(ray.xz, -0.1 + sine(time * 0.05) * 0.2)
+	ray = [sideways.x, ray.y, sideways.y]
+	fade = smoothstep(0, 0.01, abs(ray.y)) * 0.1 + 0.9
+	if ray.y > 0 {
+		light = smoothstep(0, 1.5, aurora(origin, ray, x, y)) .* fade
+		return background(ray) .* (fade * (1 - light.w)) .+ light.xyz
+	}
+	mirrored = [ray.x, abs(ray.y), ray.z]
+	light = smoothstep(0, 2.5, aurora(origin, mirrored, x, y))
+	color = background(mirrored) .* (fade * 0.6 * (1 - light.w)) .+ light.xyz
+	lake = origin .+ mirrored .* ((0.5 - origin.y) / mirrored.y)
+	ripples = triangle_noise(lake.xz .* [0.5, 0.7], 0)
+	color .+ mix([0.2, 0.25, 0.5] .* 0.08, [0.3, 0.3, 0.5] .* 0.7, ripples * 0.4)
+}
+paint(auroras, width, height)

@@ -1,0 +1,18 @@
+#!/usr/bin/env warp
+# Creation by Danilo Guanabara (Silexars), www.pouet.net/prod.php?which=57245 — "if you intend to reuse this shader,
+# please add credits to 'Danilo Guanabara'"; Shadertoy XsXXDn, CC BY-NC-SA 3.0. Ported to warp paint functions.
+use math
+width = 640
+height = 360
+time = 2.0
+
+# one color channel: rings rippling out from the middle, sampled a little later in time for each channel
+channel(x, y, z) := {
+	uv = [x / width, y / height]
+	p = (uv .- 0.5) .* [width / height, 1]
+	l = length(p)
+	uv = uv .+ p ./ l .* ((sine(z) + 1) * abs(sine(l * 9 - z - z)))
+	0.01 / length(fract(uv) .- 0.5) / l
+}
+creation(x, y) := [channel(x, y, time + 0.07), channel(x, y, time + 0.14), channel(x, y, time + 0.21)]
+paint(creation, width, height)

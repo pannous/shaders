@@ -1,0 +1,92 @@
+#!/usr/bin/env warp
+# Protean clouds by nimitz (@stormoid), Shadertoy 3l23Rh, CC BY-NC-SA 3.0 Unported. Ported to warp paint functions:
+# a deformed periodic grid as volume noise, marched with a step that grows where the density is low, fog integrated
+# between the rendered steps.
+use math
+width = 640
+height = 360
+clock_time = 4.0
+morph = smoothstep(-0.4, 0.4, sine(clock_time * 0.3))
+
+rotated(p, a) := [cosine(a) * p.x + sine(a) * p.y, -sine(a) * p.x + cosine(a) * p.y]
+# the grid's turn: a fixed rotation and scale, as nimitz's m3
+turned(p) := [dot(p, [0.33338, 0.56034, -0.71817]), dot(p, [-0.87887, 0.32651, -0.15323]), dot(p, [0.15162, 0.69596, 0.61339])] .* 1.93
+linear_step(low, high, x) := clamp((x - low) / (high - low), 0, 1)
+swing(t) := [sine(t * 0.22), cosine(t * 0.175)] .* 2
+
+# [density, distance from the tunnel's axis squared]
+volume(at) := {
+	off_axis = at.xy .- swing(at.z)
+	spun = rotated(at.xy, sine(at.z + clock_time) * (0.1 + morph * 0.05) + clock_time * 0.09)
+	p = [spun.x, spun.y, at.z] .* 0.61
+	d = 0.0
+	z = 1.0
+	track = 1.0
+	for i in 0..5 {
+		p = p .+ sine(p.zxy .* (0.75 * track) .+ clock_time * track * 0.8) .* (0.1 + morph * 0.2)
+		d -= abs(dot(cosine(p), sine(p.yzx)) * z)
+		z *= 0.57
+		track *= 1.4
+		p = turned(p)
+	}
+	d = abs(d + morph * 3) + morph * 0.3 - 2.5
+	axis = dot(off_axis, off_axis)
+	[d + axis * 0.2 + 0.25, axis]
+}
+
+render(origin, ray, time) := {
+	result = [0.0, 0.0, 0.0, 0.0]
+	t = 1.5
+	fog = 0.0
+	for i in 0..130 {
+		if result.w > 0.99 { break }
+		at = origin .+ ray .* t
+		v = volume(at)
+		density = clamp(v.x - 0.3, 0, 1) * 1.12
+		spacing = clamp(v.x + 2, 0, 3)
+		color = [0.0, 0.0, 0.0, 0.0]
+		if v.x > 0.6 {
+			tint = (sine([5, 0.4, 0.2] .+ (v.y * 0.1 + sine(at.z * 0.4) * 0.5 + 1.8)) .* 0.5 .+ 0.5) .* (density ^ 3 * linear_step(4, -2.5, v.x) * 2.3)
+			lit = clamp((density - volume(at .+ 0.8).x) / 9, 0.001, 1) + clamp((density - volume(at .+ 0.35).x) / 2.5, 0.001, 1)
+			tint = tint .* density .* ([0.005, 0.045, 0.075] .+ [0.033, 0.07, 0.03] .* (1.5 * lit))
+			color = [tint.x, tint.y, tint.z, 0.08 * density ^ 3]
+		}
+		now = exponential(t * 0.2 - 2.2)
+		color = color .+ [0.06, 0.11, 0.11, 0.1] .* clamp(now - fog, 0, 1)
+		fog = now
+		result = result .+ color .* (1 - result.w)
+		t += clamp(0.5 - spacing * spacing * 0.05, 0.09, 0.3)
+	}
+	clamp(result, 0, 1)
+}
+
+saturation(c) := (max(max(c.x, c.y), c.z) - min(min(c.x, c.y), c.z)) / (max(max(c.x, c.y), c.z) + 0.0000001)
+# from nimitz's "Will it blend": a mix that keeps the colors' saturation
+saturated_mix(a, b, x) := {
+	ic = mix(a, b, x) .+ [0.000001, 0, 0]
+	sd = abs(saturation(ic) - mix(saturation(a), saturation(b), x))
+	direction = normalize([2 * ic.x - ic.y - ic.z, 2 * ic.y - ic.x - ic.z, 2 * ic.z - ic.y - ic.x])
+	clamp(ic .+ direction .* (1.5 * sd * dot(direction, normalize(ic)) * dot([1, 1, 1], ic)), 0, 1)
+}
+
+clouds(x, y) := {
+	q = [x / width, 1 - y / height]
+	p = [(x - width / 2) / height, (height / 2 - y) / height]
+	time = clock_time * 3
+	origin = [sine(clock_time) * 0.5, 0, time]
+	sway = swing(origin.z) .* 0.85
+	origin = [origin.x + sway.x, origin.y + sway.y, origin.z]
+	ahead = swing(time + 3.5) .* 0.85
+	target = normalize(origin .- [ahead.x, ahead.y, time + 3.5])
+	right = normalize(cross(target, [0, 1, 0]))
+	up = normalize(cross(right, target))
+	right = normalize(cross(up, target))
+	ray = normalize(right .* p.x .+ up .* p.y .- target)
+	tilted = rotated(ray.xy, -swing(time + 3.5).x * 0.2)
+	ray = [tilted.x, tilted.y, ray.z]
+	scene = render(origin, ray, time)
+	color = saturated_mix(scene.zyx, scene.xyz, clamp(1 - morph, 0.05, 1))
+	color = color .^ [0.55, 0.65, 0.6] .* [1, 0.97, 0.9]
+	color .* ((16 * q.x * q.y * (1 - q.x) * (1 - q.y)) ^ 0.12 * 0.7 + 0.3)
+}
+paint(clouds, width, height)
