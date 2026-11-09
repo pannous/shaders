@@ -4,15 +4,21 @@
 use math
 width = 640
 height = 360
-time = 2.0
+global time = 0.0
 
 # one color channel: rings rippling out from the middle, sampled a little later in time for each channel
 channel(x, y, z) := {
 	uv = [x / width, y / height]
 	p = (uv .- 0.5) .* [width / height, 1]
-	l = length(p)
+	l = norm(p)
 	uv = uv .+ p ./ l .* ((sine(z) + 1) * abs(sine(l * 9 - z - z)))
-	0.01 / length(fract(uv) .- 0.5) / l
+	0.01 / norm(fract(uv) .- 0.5) / l
 }
 creation(x, y) := [channel(x, y, time + 0.07), channel(x, y, time + 0.14), channel(x, y, time + 0.21)]
-paint(creation, width, height)
+# the seconds since the start, read by the painted function anew each frame of the window until it closes
+# (headless: one frame, as a PNG)
+started = clock()
+on frame {
+	time = float(clock() - started) / 1000
+	paint(creation, width, height)
+}

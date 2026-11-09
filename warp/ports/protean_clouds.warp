@@ -5,8 +5,8 @@
 use math
 width = 640
 height = 360
-clock_time = 4.0
-morph = smoothstep(-0.4, 0.4, sine(clock_time * 0.3))
+global clock_time = 0.0
+global morph = 0.0
 
 rotated(p, a) := [cosine(a) * p.x + sine(a) * p.y, -sine(a) * p.x + cosine(a) * p.y]
 # the grid's turn: a fixed rotation and scale, as nimitz's m3
@@ -89,4 +89,11 @@ clouds(x, y) := {
 	color = color .^ [0.55, 0.65, 0.6] .* [1, 0.97, 0.9]
 	color .* ((16 * q.x * q.y * (1 - q.x) * (1 - q.y)) ^ 0.12 * 0.7 + 0.3)
 }
-paint(clouds, width, height)
+# the seconds since the start, read by the painted function anew each frame of the window until it closes
+# (headless: one frame, as a PNG)
+started = clock()
+on frame {
+	clock_time = float(clock() - started) / 1000
+	morph = smoothstep(-0.4, 0.4, sine(clock_time * 0.3))
+	paint(clouds, width, height)
+}

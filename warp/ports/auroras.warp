@@ -4,7 +4,7 @@
 use math
 width = 640
 height = 360
-time = 3.0
+global time = 0.0
 
 rotated(p, a) := [cosine(a) * p.x - sine(a) * p.y, sine(a) * p.x + cosine(a) * p.y]
 triangle(x) := clamp(abs(fract(x) - 0.5), 0.01, 0.49)
@@ -72,4 +72,10 @@ auroras(x, y) := {
 	ripples = triangle_noise(lake.xz .* [0.5, 0.7], 0)
 	color .+ mix([0.2, 0.25, 0.5] .* 0.08, [0.3, 0.3, 0.5] .* 0.7, ripples * 0.4)
 }
-paint(auroras, width, height)
+# the seconds since the start, read by the painted function anew each frame of the window until it closes
+# (headless: one frame, as a PNG)
+started = clock()
+on frame {
+	time = float(clock() - started) / 1000
+	paint(auroras, width, height)
+}
