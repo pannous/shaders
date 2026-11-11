@@ -8,28 +8,36 @@
 # surface is lit from the normals of the combined thickness, a glossy highlight on top.
 # Drag to smear, space pours three fresh drops, F fills the screen, Escape leaves full screen, then ends. Headless,
 # the PNG shows a first smear.
+# One cell per point of the window, up to MAX_CELLS (a larger window shows the grid enlarged, smoothly): a window of
+# another size takes the liquids along, resampled. Velocities count in units of the 200 cells high design (a unit is
+# `scale` cells), so the liquids look alike at any size.
 # Everything runs on the GPU (gpu_compute) over GPU lists [f32], two states taking turns
 use keys
-width = 320
-height = 200
-cells = width * height
-state_size = 8 # per cell: velocity x, y, thickness of the three liquids, history of the three liquids
+MAX_CELLS = 400 * 250 # a frame (a step and its colors) costs about 30 ms at this many cells, more make the window stutter
+DESIGN_HEIGHT = 200 # the height the speeds, the finger and the first smear were tuned at
+FINGER_RADIUS = 14  # in units
+state_size = 8      # per cell: velocity x, y, thickness of the three liquids, history of the three liquids
+# the finger and the grid, as the shaders read them: x, y, its motion x, y, pressed, radius, phase (which array holds
+# this step's state), pouring, width, height, scale
+SETTINGS = 11
 
-# the step as a shader block: WGSL written as warp code reads, no text quotes (its sizes written out: a block has no
-# ${…}; keep them as width, height and state_size above)
+# the step as a shader block: WGSL written as warp code reads, no text quotes (a block has no ${…}: its sizes arrive in
+# finger, state_size written out as S)
 step = shader {
 	@group(0) @binding(0) var<storage, read_write> one: array<f32>;
 	@group(0) @binding(1) var<storage, read_write> two: array<f32>;
 	@group(0) @binding(2) var<storage, read_write> finger: array<f32>;
 	@group(0) @binding(3) var<storage, read_write> pixels: array<f32>;
-	const W = 320; const H = 200; const S = 8;
-	const DT = 1.0;             // cells a unit of velocity moves in a step
+	const S = 8;
+	var<private> W: i32;        // the grid's cells across, down, and cells per unit of velocity (from finger)
+	var<private> H: i32;
+	var<private> SCALE: f32;
+	const DT = 1.0;             // units a unit of velocity moves in a step
 	const FADE = 0.985;         // velocity kept per step (no pressure solve: looks over conservation)
 	const VISCOSITY = 0.12;     // velocity shared with the neighbors
 	const MOVES = vec2f(0.05, 1.2); // below the first speed the liquid stays, above the second it moves fully
 	const SHARE = 0.3;          // the part of a cell's thickness that leaves with a full flow (the article's 0.3)
 
-	// the finger: x, y, its motion x, y, pressed, radius, phase (which array holds this step's state), pouring
 	fn from_one() -> bool { return finger[6] < 0.5; }
 	fn held(cell: i32, k: i32) -> f32 {
 		if (from_one()) { return one[cell * S + k]; }
@@ -60,7 +68,8 @@ step = shader {
 	fn ks_of(r: vec3f) -> vec3f { return (1.0 - r) * (1.0 - r) / (2.0 * r); }
 	fn reflectance(ks: vec3f) -> vec3f { return 1.0 + ks - sqrt(ks * ks + 2.0 * ks); }
 
-	@compute @workgroup_size(64) fn main(@builtin(global_invocation_id) id: vec3<u32>) {
+	@compute @workgroup_size(256) fn main(@builtin(global_invocation_id) id: vec3<u32>) {
+		W = i32(finger[8]); H = i32(finger[9]); SCALE = finger[10];
 		let cell = i32(id.x);
 		if (cell >= W * H) { return; }
 		let x = cell % W;
@@ -76,7 +85,7 @@ step = shader {
 		}
 		// velocity: carried along itself, shared with its neighbors, pushed by the finger, fading
 		let v_here = vec2f(held(cell, 0), held(cell, 1));
-		let back = at - v_here * DT;
+		let back = at - v_here * DT * SCALE;
 		var v = vec2f(sampled(back, 0), sampled(back, 1));
 		let around = (vec2f(at_clamped(x + 1, y, 0), at_clamped(x + 1, y, 1)) + vec2f(at_clamped(x - 1, y, 0), at_clamped(x - 1, y, 1))
 			+ vec2f(at_clamped(x, y + 1, 0), at_clamped(x, y + 1, 1)) + vec2f(at_clamped(x, y - 1, 0), at_clamped(x, y - 1, 1))) * 0.25;
@@ -89,7 +98,7 @@ step = shader {
 		put(cell, 0, v.x); put(cell, 1, v.y);
 
 		// thickness: a part leaves where the flow is strong, a part arrives from where the flow comes from (height.frag)
-		let source = at - v_here * DT;
+		let source = at - v_here * DT * SCALE;
 		let leaving = strength(v_here);
 		let arriving = strength(vec2f(sampled(source, 0), sampled(source, 1)));
 		var heights = vec3f(0.0);
@@ -108,7 +117,7 @@ step = shader {
 		}
 
 		// normals from the combined thickness, its neighbors to the right and below
-		let scale = 30.0;
+		let scale = 30.0 * SCALE;
 		let h = heights.x + heights.y + heights.z;
 		let hx = total(clamp(y, 0, H - 1) * W + clamp(x + 1, 0, W - 1));
 		let hy = total(clamp(y + 1, 0, H - 1) * W + x);
@@ -135,28 +144,82 @@ step = shader {
 }
 
 
-one = float[cells * state_size]
-two = float[cells * state_size]
-pixels = float[cells]
-global finger = float[8]
+# the liquids taken into a grid of another size: each new cell the old state bilinear at its place
+resampled = shader {
+	@group(0) @binding(0) var<storage, read_write> before: array<f32>;
+	@group(0) @binding(1) var<storage, read_write> after: array<f32>;
+	@group(0) @binding(2) var<storage, read_write> sizes: array<f32>; // width, height before, width, height after
+	const S = 8;
+	fn old(x: i32, y: i32, k: i32) -> f32 {
+		let w = i32(sizes[0]);
+		let h = i32(sizes[1]);
+		return before[(clamp(y, 0, h - 1) * w + clamp(x, 0, w - 1)) * S + k];
+	}
+	@compute @workgroup_size(256) fn main(@builtin(global_invocation_id) id: vec3<u32>) {
+		let w = i32(sizes[2]);
+		let cell = i32(id.x);
+		if (cell >= w * i32(sizes[3])) { return; }
+		let p = (vec2f(f32(cell % w), f32(cell / w)) + 0.5) * vec2f(sizes[0], sizes[1]) / vec2f(sizes[2], sizes[3]) - 0.5;
+		let i = vec2i(floor(p));
+		let f = fract(p);
+		for (var k = 0; k < S; k++) {
+			let top = mix(old(i.x, i.y, k), old(i.x + 1, i.y, k), f.x);
+			let bottom = mix(old(i.x, i.y + 1, k), old(i.x + 1, i.y + 1, k), f.x);
+			after[cell * S + k] = mix(top, bottom, f.y);
+		}
+	}
+}
+
+# the lists made once at the most cells (a list made anew loses its place on the GPU: card gpu-list-reassigned-slow)
+one = float[MAX_CELLS * state_size]
+two = float[MAX_CELLS * state_size]
+pixels = float[MAX_CELLS]
+global finger = float[SETTINGS]
+global width = 0
+global height = 0
+global scale = 1.0
 global last_x = 0.0
 global last_y = 0.0
 global was_down = no
 
-# one step of the liquids, two phases so the state lands back in `one`; the finger at x, y moving by dx, dy
+cells() := width * height
+workgroups(count) := int(count / 256) + 1
+# a window of w × h points as cells: one a point, shrunk to MAX_CELLS keeping its shape
+fitted(w, h) := {
+	shrink = min(1.0, sqrt(MAX_CELLS / (w * h)))
+	[int(w * shrink), int(h * shrink)]
+}
+# the grid at w × h cells, the liquids so far resampled into it (by way of `two`, so they land back in `one`)
+def sized(w, h) {
+	if w == width and h == height { return }
+	if width > 0 {
+		gpu_compute(resampled, {before: one, after: two, sizes: [width, height, w, h]}, workgroups(w * h))
+		gpu_compute(resampled, {before: two, after: one, sizes: [w, h, w, h]}, workgroups(w * h))
+	}
+	width = w
+	height = h
+	scale = h / DESIGN_HEIGHT
+}
+def window_followed() {
+	grid = fitted(window.width, window.height)
+	sized(grid#1, grid#2)
+}
+
+# one step of the liquids, two phases so the state lands back in `one`; the finger at x, y moving by dx, dy, in cells
 def stepped(x, y, dx, dy, pressed, pouring = 0) {
-	settings = [x, y, dx, dy, pressed, 14, 0, pouring]
+	settings = [x, y, dx / scale, dy / scale, pressed, FINGER_RADIUS * scale, 0, pouring, width, height, scale]
 	for setting in 1 to #settings { finger#setting = settings#setting }
 	for phase in 0..2 {
 		finger#7 = phase
-		gpu_compute(step, {one: one, two: two, finger: finger, pixels: pixels}, cells / 64 + 1)
+		gpu_compute(step, {one: one, two: two, finger: finger, pixels: pixels}, workgroups(cells()))
 	}
 }
 def poured() { stepped(0, 0, 0, 0, 0, 1) }
-# a finger dragged from x1, y1 to x2, y2 in the given steps
+# a finger dragged from x1, y1 to x2, y2 in the given steps, in units of the design (320 × 200 at scale 1)
 def smeared(x1, y1, x2, y2, steps) {
 	for s in 0..steps {
-		stepped(x1 + (x2 - x1) * s / steps, y1 + (y2 - y1) * s / steps, (x2 - x1) / steps, (y2 - y1) / steps, 1)
+		t = s / steps
+		stepped((x1 + (x2 - x1) * t) * scale, (y1 + (y2 - y1) * t) * scale, (x2 - x1) * scale / steps, (y2 - y1) * scale / steps, 1)
 	}
 }
 def rested(steps) {
@@ -164,6 +227,7 @@ def rested(steps) {
 }
 
 # a first smear while the program starts, so the window (or the headless PNG) opens on mixed liquid
+window_followed()
 poured()
 smeared(60, 130, 260, 90, 40)
 smeared(250, 60, 90, 110, 40)
@@ -176,12 +240,13 @@ on key {
 }
 
 on frame {
+	window_followed()
 	down = mouse_down
 	if down and not was_down { last_x = mouse_x; last_y = mouse_y }
 	stepped(mouse_x, mouse_y, mouse_x - last_x, mouse_y - last_y, if down then 1 else 0)
 	last_x = mouse_x
 	last_y = mouse_y
 	was_down = down
-	paint([int(color) for color in pixels], width, height)
+	paint([int(pixels#cell) for cell in 1 to cells()], width, height)
 }
 "three liquids on ${width}×${height} cells"
