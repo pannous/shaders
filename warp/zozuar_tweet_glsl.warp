@@ -1,0 +1,64 @@
+#!/usr/bin/env warp
+# zozuar's (@zozuar) #つぶやきGLSL one-liner, ported as a WGSL fragment shader (twigl geekest: FC, r, t, o, s,
+# rotate3D, PI2): https://x.com/zozuar/status/2119706657202569241
+# license: not stated in the post, so all rights stay with the author
+# A hundred steps march a ray into a turning fractal: each step iterates z += p + sin(z/R·2π)·R³ up to nine times
+# while |z| < 2, and the distance estimate R/d is the step. Light gathers where the estimate is small, hued by the
+# log of the running derivative d. twigl's sound value s is 0 here. $time and $size are paint's values, read each frame
+zozuar = shader {
+	const PI2: f32 = 6.28318530718;
+	// twigl's rotate3D: a turn of angle around axis, as GLSL's mat3 (column by column)
+	fn rotate3D(angle: f32, axis: vec3f) -> mat3x3f {
+		let a = normalize(axis);
+		let s = sin(angle);
+		let c = cos(angle);
+		let r = 1.0 - c;
+		return mat3x3f(
+			a.x * a.x * r + c, a.y * a.x * r + a.z * s, a.z * a.x * r - a.y * s,
+			a.x * a.y * r - a.z * s, a.y * a.y * r + c, a.z * a.y * r + a.x * s,
+			a.x * a.z * r + a.y * s, a.y * a.z * r - a.x * s, a.z * a.z * r + c);
+	}
+
+	@fragment fn main(@builtin(position) at: vec4f) -> @location(0) vec4f {
+		// gl_FragCoord counts up from the bottom; a paint pixel counts down from the top
+		let fc = vec2f(at.x, $size.y - at.y);
+		// twigl's sound, silent
+		let s = 0.0;
+		let t = $time;
+		var radius = 0.0;
+		var e = 0.0;
+		var d = 0.0;
+		var g = 0.0;
+		var color = vec4f(0.0);
+		// i++ < 1e2, so a hundred steps
+		for (var step = 0; step < 100; step++) {
+			var p = vec3f((fc * 2.0 - $size) / $size.y, 3.0) * g;
+			p.z -= exp2(cos(t * 0.2));
+			// p *= rotate3D(t*.2, --z): z starts at 0, so the axis is (-1, -1, -1); GLSL's v*=m is v*m
+			p = p * rotate3D(t * 0.2, vec3f(-1.0));
+			d = 60.0;
+			var z = p;
+			// for(j=s; R=length(z), j++<9. && R<2.; z+=…) d*=R*3.;
+			var j = s;
+			loop {
+				radius = length(z);
+				let more = j < 9.0;
+				j += 1.0;
+				if (!(more && radius < 2.0)) { break; }
+				d *= radius * 3.0;
+				z += p + sin(z / radius * PI2) * radius * radius * radius;
+			}
+			e = radius / d;
+			g += e;
+			// the outer loop's step
+			color += 0.01 / exp(vec4f(max(e, s) * 1000.0 + 1.0) - sin(vec4f(2.0, 3.0, 4.0, 4.0) - vec4f(log(d))));
+		}
+		return vec4f(color.rgb, 1.0);
+	}
+}
+# ten seconds by the clock, however long a frame takes
+started = clock()
+while clock() - started < 10000 {
+	paint(zozuar)
+	sleep(1 / 60)
+}
