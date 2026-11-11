@@ -123,9 +123,7 @@ wormhole = compute_toy(shader {
 	    textureStore(screen, id.xy, final_color);
 	}
 })
-# ten seconds by the clock, however long a frame takes
-started = clock()
-while clock() - started < 10000 {
+# each frame of the window until it closes (headless: one frame, as a PNG)
+on frame {
 	paint(wormhole)
-	sleep(1 / 60)
 }

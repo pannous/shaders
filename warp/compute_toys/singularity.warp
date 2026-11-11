@@ -72,9 +72,7 @@ singularity = compute_toy(shader {
 	    textureStore(screen, id.xy, pow(O,vec4<f32>(2.2)));
 	}
 })
-# ten seconds by the clock, however long a frame takes
-started = clock()
-while clock() - started < 10000 {
+# each frame of the window until it closes (headless: one frame, as a PNG)
+on frame {
 	paint(singularity)
-	sleep(1 / 60)
 }

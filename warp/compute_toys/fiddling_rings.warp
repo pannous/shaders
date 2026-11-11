@@ -69,9 +69,7 @@ rings = compute_toy(shader {
 	    textureStore(screen, o_trn_pixel.xy, vec4f(o_col, 1.));
 	}
 })
-# ten seconds by the clock, however long a frame takes
-started = clock()
-while clock() - started < 10000 {
+# each frame of the window until it closes (headless: one frame, as a PNG)
+on frame {
 	paint(rings)
-	sleep(1 / 60)
 }

@@ -36,9 +36,7 @@ deuterium = shader {
 		return vec4f(tanh(color.rgb / 600.0), 1.0);
 	}
 }
-# ten seconds by the clock, however long a frame takes
-started = clock()
-while clock() - started < 10000 {
+# each frame of the window until it closes (headless: one frame, as a PNG)
+on frame {
 	paint(deuterium)
-	sleep(1 / 60)
 }

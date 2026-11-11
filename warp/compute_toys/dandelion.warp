@@ -190,9 +190,7 @@ dandelion = compute_toy(shader {
 width = 960
 height = 540
 sliders = {r1: 0.591, g1: 0.009, b1: 0.217, r2: 0.015, g2: 0.711, b2: 1, r3: 0, g3: 0.016, b3: 0.052, nn: 0.462, R0: 1, noise1: 0.228, noise2: 0.897, shape1: 0.516, shape2: 0.507, R1: 0.185}
-# ten seconds by the clock, however long a frame takes
-started = clock()
-while clock() - started < 10000 {
+# each frame of the window until it closes (headless: one frame, as a PNG)
+on frame {
 	paint(dandelion, width, height, sliders)
-	sleep(1 / 60)
 }

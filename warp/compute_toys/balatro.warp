@@ -169,9 +169,7 @@ balatro = compute_toy(shader {
 	    textureStore(screen, id.xy, vec4f(corrected_color, 1.0));
 	}
 })
-# ten seconds by the clock, however long a frame takes
-started = clock()
-while clock() - started < 10000 {
+# each frame of the window until it closes (headless: one frame, as a PNG)
+on frame {
 	paint(balatro)
-	sleep(1 / 60)
 }

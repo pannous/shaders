@@ -38,9 +38,7 @@ solar = compute_toy(shader {
 	    return a - b * floor(a / b);
 	}
 })
-# ten seconds by the clock, however long a frame takes
-started = clock()
-while clock() - started < 10000 {
+# each frame of the window until it closes (headless: one frame, as a PNG)
+on frame {
 	paint(solar)
-	sleep(1 / 60)
 }
