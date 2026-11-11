@@ -10,7 +10,7 @@
 use keys
 width = 320
 height = 200
-cells = width * height
+cells = width * height * 4
 state_size = 8 # per cell: water, suspended cyan magenta yellow, deposited cyan magenta yellow, unused
 steps_per_frame = 2
 dry_after_pixels = 250 # a stroke runs dry along its way, after this many pixels
