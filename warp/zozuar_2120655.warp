@@ -1,0 +1,71 @@
+#!/usr/bin/env warp
+# zozuar's (@zozuar, yonatan) twigl GLSL one-liner, ported as a WGSL fragment shader (geekest: FC, r, t, o, s,
+# rotate2D, PI2): https://x.com/zozuar/status/2120655375112225116
+# license: not stated in the post, so all rights stay with the author
+# A hundred steps march a ray into a folding fractal. Each step iterates while |z| < 2 (up to nine times): the point
+# is spun on all three axes by twigl's rotate2D (the tweet's macro S, three times) with angle from z/R²·2π + t/8,
+# then folded as z = p − z·R³; the distance estimate R/d is the step. Light is the tweet's exp(cos(c·…) − 6e4/d − 5.3)
+# added onto black. This file is that faithful original. An inverted companion is warp/zozuar_2120655_inverted.warp.
+# twigl's `s` in `c=j=s` is the sound uniform (readme of doxas/twigl: classic `sound`, otherwise `s`); the tweet has
+# no sound shader, so s is 0. (sin(t) was considered and rejected: at t = 10 s this render already matches the video
+# with s = 0.) $time and $size are paint's values, read each frame.
+zozuar = shader {
+	const PI2: f32 = 6.28318530718;
+	// twigl geekest rotate2D: mat2(cos, sin, -sin, cos). GLSL v*=m is v*m (row vector).
+	fn rotate2D(r: f32) -> mat2x2f {
+		let c = cos(r);
+		let s = sin(r);
+		return mat2x2f(c, s, -s, c);
+	}
+
+	@fragment fn main(@builtin(position) at: vec4f) -> @location(0) vec4f {
+		// gl_FragCoord counts up from the bottom; a paint pixel counts down from the top
+		let fc = vec2f(at.x, $size.y - at.y);
+		// twigl's sound uniform, silent when the tweet has no sound shader
+		let s = 0.0;
+		let t = $time;
+		var c = 0.0;
+		var radius = 0.0;
+		var d = 0.0;
+		var g = 0.0;
+		var color = vec4f(0.0);
+		// i++ < 1e2, so the body sees i = 1 … 100
+		for (var step = 0; step < 100; step++) {
+			let i = f32(step) + 1.0;
+			var p = vec3f((0.5 * $size - fc) / $size.y * g, g - 1.3) + vec3f(i / 1.0e5);
+			var z = p;
+			var x = vec3f(0.0);
+			d = 6.0;
+			// for(c=j=s; R=length(z), j++<9. && R<2.; x=z/R/R*PI2+t/8., S,S,S, z=p-z*R³)
+			c = s;
+			var j = s;
+			loop {
+				radius = length(z);
+				let more = j < 9.0;
+				j += 1.0;
+				if (!(more && radius < 2.0)) { break; }
+				d *= radius * 5.0;
+				c += dot(z, p);
+				x = z / radius / radius * PI2 + vec3f(t / 8.0);
+				// macro S three times: z.xy*=rotate2D(x.z), z=z.zxy, x=x.zxy
+				z = vec3f(z.xy * rotate2D(x.z), z.z);
+				z = z.zxy;
+				x = x.zxy;
+				z = vec3f(z.xy * rotate2D(x.z), z.z);
+				z = z.zxy;
+				x = x.zxy;
+				z = vec3f(z.xy * rotate2D(x.z), z.z);
+				z = z.zxy;
+				x = x.zxy;
+				z = p - z * radius * radius * radius;
+			}
+			g += radius / d;
+			color += exp(cos(c * 0.2 * vec4f(1.0, 2.0, 3.0, 0.0) + vec4f(c)) - vec4f(6.0e4 / d + 5.3));
+		}
+		return vec4f(color.rgb, 1.0);
+	}
+}
+# each frame of the window until it closes (headless: one frame, as a PNG)
+on frame {
+	paint(zozuar)
+}
