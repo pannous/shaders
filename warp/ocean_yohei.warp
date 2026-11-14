@@ -1,8 +1,9 @@
 #!/usr/bin/env warp
 # The sea under Yohei Nishitsuji's clouds: his #つぶやきGLSL one-liner
 # https://x.com/YoheiNishitsuji/status/2121234124409086460 (twigl geeker) paints the sky, mirrored on the water too,
-# over a copy of samples/gpu/ocean.warp (pannous/warp), moved up from its sunset into the afternoon. That sea is
-# a sunset sea, after web-ocean (github.com/Noniv/web-ocean, MIT): waves, sun glitter, whitecaps, a warm sky with two cloud layers, aerial perspective and AgX tone mapping,
+# over a copy of samples/gpu/ocean.warp (pannous/warp), moved up from its sunset into the afternoon, the tweet's clouds
+# in place of its two cloud layers. That sea is after web-ocean (github.com/Noniv/web-ocean, MIT): waves, sun glitter,
+# whitecaps, aerial perspective and AgX tone mapping,
 # all pur warp functions that paint(ocean, width, height) compiles to one fragment shader.
 # Each pixel casts a ray from the camera: it marches down onto the waves or goes up into the sky.
 # web-ocean simulates its waves by FFT on a quadtree mesh over several passes; here they are a sum of wind waves, each one dragging the next along (cheap, and the crests stay sharp)
