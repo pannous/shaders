@@ -1,0 +1,123 @@
+#!/usr/bin/env warp
+# "Sliced Gyroid Fly Though" by byt3_m3chanic (@byt3m3chanic on X, pjkarlik on CodePen), a Shadertoy
+# raymarcher, ported as a WGSL fragment shader: https://www.shadertoy.com/view/dssXzN (Shadertoy Shader of the Week,
+# Nov 2026). The paste we had lacked its top (map, rot, the glow globals); those come from the author's own CodePen
+# version "Sliced Gyroid LogPolar Warp", https://codepen.io/pjkarlik/pen/mdKBNmX, whose rest equals the Shadertoy
+# paste but for the warm glow's channel order and the mouse mapping; here both follow the Shadertoy paste.
+# license: Shadertoy's default, CC BY-NC-SA 3.0, unless the author states otherwise (CodePen's public pens are MIT);
+# credit stays with the author, no commercial use.
+# Space is turned inside out (p · 8/|p|², a log-polar-like inversion), spun slowly (trot) and flown through along z.
+# It is cut into thin slices 0.35 apart; each slice is a gyroid sheet, so the march sees stacked lace. Two slice bands
+# sweep through the stack with time: slices near the one band add warm glow, near the other cyan tglow. The ray
+# steps cautiously (0.35 of the distance) for 64 steps, then 0.75, up to 164; the far end fades into a blue-to-olive
+# fog that waves across the screen. Drag the mouse to orbit the camera; let go and it springs back. $time, $mouse,
+# $mouse_down and $size are paint's values, read each frame.
+sliced_gyroid = shader {
+	const PI: f32 = 3.14159265358;
+	const OFX: f32 = 1.25;
+
+	// the slow spin of the inverted space, and the glow each slice band adds along a ray
+	var<private> trot: mat2x2f;
+	var<private> glow: f32;
+	var<private> tglow: f32;
+
+	// GLSL rot: mat2(cos, sin, -sin, cos). GLSL v*=m is v*m (row vector), the same in WGSL.
+	fn rot(a: f32) -> mat2x2f {
+		return mat2x2f(cos(a), sin(a), -sin(a), cos(a));
+	}
+
+	// GLSL mod, floored: WGSL % keeps the sign of x, which breaks the slice bands below zero
+	fn modulo(x: f32, y: f32) -> f32 {
+		return x - y * floor(x / y);
+	}
+
+	fn gyroid(q: vec3f, s: f32, t: f32, b: f32) -> f32 {
+		let p = q * s;
+		return abs(dot(sin(p * OFX), cos(p.zxy)) - b) / (s * OFX) - t;
+	}
+
+	// distance to the sliced gyroid, and its material (always 3)
+	fn map(q: vec3f) -> vec2f {
+		var res = vec2f(1e5, 1.0);
+		let k = 8.0 / dot(q, q);
+		let mul = 1.0 / k;
+		var p = q * k;
+		p = vec3f(p.xy * trot, p.z);
+		p = vec3f(p.x, p.yz + vec2f(-1.25, $time));
+
+		let mm = 3.85 + 3.75 * sin($time * 0.15);
+		let ms = 1.85 + 1.75 * cos($time * 0.35);
+
+		let d = 0.35;
+		var mf = 1e5;
+		for (var j = -1.0; j < 2.0; j += 1.0) {
+			var nf = p;
+			nf.z = round(nf.z / d + j) * d;
+			let ids = modulo(nf.z, 4.0);
+			let idx = modulo(nf.z, 8.0);
+			var fd = gyroid(nf, 0.75, 0.0, 0.525);
+			fd = abs(fd) - 0.025;
+			nf.z = clamp(p.z, nf.z - d / 2.0, nf.z + d / 2.0);
+			fd = length(vec2f(max(0.0, fd), nf.z - p.z));
+			if (idx < mm + 0.15 && idx > mm) { tglow += 0.002 / (0.015 + fd * fd); }
+			if (ids < ms + 0.15 && ids > ms) { glow += 0.002 / (0.015 + fd * fd); }
+			mf = min(mf, fd);
+		}
+		if (mf < res.x) { res = vec2f(mf, 3.0); }
+		res.x *= mul / 1.35;
+		return res;
+	}
+
+	@fragment fn main(@builtin(position) at: vec4f) -> @location(0) vec4f {
+		// fragCoord and iMouse count up from the bottom; a paint pixel counts down from the top
+		let size = $size;
+		let frag = vec2f(at.x, size.y - at.y);
+		glow = 0.0;
+		tglow = 0.0;
+		trot = rot($time * 0.072);
+
+		let uv = (2.0 * frag - size) / max(size.x, size.y);
+		var ro = vec3f(0.0, 0.0, 0.5);
+		var rd = normalize(vec3f(uv, -1.0));
+
+		// Shadertoy's iMouse orbits only while the button is held (iMouse.z < 0 once let go)
+		var x = 0.0;
+		var y = 0.0;
+		if ($mouse_down > 0.5) {
+			let m = vec2f($mouse.x, size.y - $mouse.y);
+			x = -(m.y / size.y * 0.5 - 0.25) * PI;
+			y = -(m.x / size.x * 2.0 - 1.0) * PI;
+		}
+		let rx = rot(x);
+		let ry = rot(y);
+		ro = vec3f(ro.x, ro.yz * rx);
+		let roxz = ro.xz * ry;
+		ro = vec3f(roxz.x, ro.y, roxz.y);
+		rd = vec3f(rd.x, rd.yz * rx);
+		let rdxz = rd.xz * ry;
+		rd = vec3f(rdxz.x, rd.y, rdxz.y);
+
+		var p = ro;
+		var d = 0.0;
+		for (var i = 0; i < 164; i++) {
+			let t = map(p);
+			d += select(t.x * 0.75, t.x * 0.35, i < 64);
+			p = ro + rd * d;
+			if (t.x < d * 1e-4 || d > 45.0) { break; }
+		}
+
+		let sp = 0.2 + 0.2 * sin(uv.x * 4.1 + $time);
+		let fog = mix(vec3f(0.043, 0.153, 0.255), vec3f(0.235, 0.302, 0.0), clamp(uv.y + 0.5 - sp, 0.0, 1.0));
+
+		var c = vec3f(0.0);
+		c = mix(c, vec3f(glow, glow * 0.65, glow * 0.15), clamp(glow, 0.0, 0.6));
+		c = mix(c, vec3f(tglow * 0.15, tglow * 0.465, tglow), clamp(tglow, 0.0, 0.8));
+		c = mix(c, fog, 1.0 - exp(-20.0 * d * d * d));
+		c = clamp(c, vec3f(0.0), vec3f(1.0));
+		return vec4f(pow(c, vec3f(0.4545)), 1.0);
+	}
+}
+# each frame of the window until it closes (headless: one frame, as a PNG)
+on frame {
+	paint(sliced_gyroid)
+}
